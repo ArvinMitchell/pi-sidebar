@@ -22,9 +22,14 @@ const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PI_SIDEBAR_PORT || 43118);
 const HOST = "127.0.0.1";
 
-// 固定 cwd，保证浏览器会话持久化在同一个目录下
-const WORKSPACE = path.join(BRIDGE_DIR, "..", "workspace");
+// 用户数据放在可见目录，方便备份、迁移和手动管理。
+// 程序仍可安装在隐藏目录 ~/.pi-sidebar/bridge，不与数据混在一起。
+const DATA_ROOT = process.env.PI_SIDEBAR_DATA_DIR
+  || path.join(process.env.HOME || path.join(BRIDGE_DIR, ".."), "Pi Sidebar");
+const WORKSPACE = path.join(DATA_ROOT, "workspace");
+const SESSION_DIR = path.join(DATA_ROOT, "sessions");
 mkdirSync(WORKSPACE, { recursive: true });
+mkdirSync(SESSION_DIR, { recursive: true });
 
 // 只开放浏览器工具（bash/文件读写等内置工具保持禁用）。
 // 网页内容不可信，即使被提示注入，agent 也只能操作浏览器。
@@ -43,6 +48,7 @@ const PI_ARGS = [
   "--mode", "rpc",
   "--extension", path.join(BRIDGE_DIR, "pi-browser-tools.mjs"),
   "--tools", BROWSER_TOOLS.join(","),
+  "--session-dir", SESSION_DIR,
   "--name", "browser-sidebar",
 ];
 

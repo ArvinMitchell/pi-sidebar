@@ -1,7 +1,7 @@
 {
   "name": "pi-sidebar-bridge",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Local WebSocket bridge between the Pi Sidebar Chrome extension and a pi --mode rpc process",
   "scripts": {

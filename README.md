@@ -29,6 +29,16 @@ pi --mode rpc --extension pi-browser-tools.mjs --tools browser_*
 
 数据流向：网页内容只发往 ① 你本机的 bridge ② 你自己配置的 LLM 提供商。没有第三方服务器。
 
+用户数据使用可见目录，方便备份和管理：
+
+```text
+~/Pi Sidebar/
+├── workspace/   工作目录
+└── sessions/    历史对话（标准 Pi JSONL）
+```
+
+可通过环境变量 `PI_SIDEBAR_DATA_DIR` 修改数据目录。
+
 ## 安装
 
 ### 前置要求
@@ -108,7 +118,8 @@ curl http://127.0.0.1:43118/status
 bridge/bridge.mjs            WebSocket/HTTP 桥 + pi RPC 进程管理
 bridge/pi-browser-tools.mjs  pi 扩展：注册 browser_* 工具
 extension/                   Chrome MV3 插件（侧边栏 + 后台工具执行端）
-workspace/                   （运行时生成）pi 会话锚定目录
+~/Pi Sidebar/workspace/      可见工作目录（运行时生成）
+~/Pi Sidebar/sessions/       可见历史目录（运行时生成）
 ```
 
 ## 支持这个项目

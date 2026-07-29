@@ -7,6 +7,7 @@
 set -euo pipefail
 
 INSTALL_DIR="$HOME/.pi-sidebar"
+DATA_DIR="${PI_SIDEBAR_DATA_DIR:-$HOME/Pi Sidebar}"
 PORT="${PI_SIDEBAR_PORT:-43118}"
 REPO="ArvinMitchell/pi-sidebar"
 
@@ -39,7 +40,16 @@ rm -rf "$INSTALL_DIR/bridge" "$INSTALL_DIR/pi-sidebar-bridge"
 unzip -qo "$TMP_ZIP" -d "$INSTALL_DIR"
 mv "$INSTALL_DIR/pi-sidebar-bridge" "$INSTALL_DIR/bridge"
 rm -f "$TMP_ZIP"
-mkdir -p "$INSTALL_DIR/bridge/../workspace" 2>/dev/null || true
+mkdir -p "$DATA_DIR/workspace" "$DATA_DIR/sessions"
+
+# 从旧版隐藏目录迁移标准 Pi 会话（保留旧文件，只复制不删除）
+LEGACY_WORKSPACE="$INSTALL_DIR/workspace"
+LEGACY_KEY=$(node -e 'const path=require("node:path"); const p=process.argv[1]; console.log("--" + p.split(path.sep).filter(Boolean).join("-") + "--")' "$LEGACY_WORKSPACE")
+LEGACY_SESSIONS="$HOME/.pi/agent/sessions/$LEGACY_KEY"
+if find "$LEGACY_SESSIONS" -maxdepth 1 -name '*.jsonl' -print -quit 2>/dev/null | grep -q .; then
+  info "迁移旧历史到可见目录 $DATA_DIR/sessions（旧文件保留）…"
+  find "$LEGACY_SESSIONS" -maxdepth 1 -name '*.jsonl' -exec cp -n {} "$DATA_DIR/sessions/" \;
+fi
 
 # ---------------------------------------------------------------------------
 # 3. 配置开机自启
@@ -112,6 +122,7 @@ if curl -fsS "http://127.0.0.1:$PORT/status" >/dev/null 2>&1; then
   echo "  1. 从 https://github.com/$REPO/releases/latest 下载 extension zip 并解压"
   echo "  2. 打开 chrome://extensions/ → 开发者模式 → 加载已解压的扩展程序"
   echo ""
+  echo "历史与工作文件: $DATA_DIR"
   echo "日志: $INSTALL_DIR/bridge.log"
   echo "卸载: $INSTALL_DIR/bridge 删除即可，macOS 再执行 launchctl unload ~/Library/LaunchAgents/com.pisidebar.bridge.plist"
 else
