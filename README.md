@@ -97,7 +97,7 @@ curl http://127.0.0.1:43118/status
 
 ## 常见问题
 
-- **显示"未连接"**：bridge 没启动，`cd pi-sidebar/bridge && npm start`
+- **显示"未连接"**：bridge 没启动。用一键脚本装的通常是 pi 未登录（看 `~/.pi-sidebar/bridge.log`）；手动装的重新 `npm start`
 - **bridge 开机自启**：macOS 可配置 launchd（见 issue 或自行添加 plist）
 - **chrome:// 等系统页面**：浏览器禁止扩展访问，无法读取/操作
 - **换端口**：`PI_SIDEBAR_PORT=xxxx npm start`，同时改 `extension/sidepanel.js` 与 `extension/background.js` 里的 `WS_URL`
