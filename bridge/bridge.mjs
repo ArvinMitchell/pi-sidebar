@@ -48,6 +48,17 @@ const PI_ARGS = [
 
 const MAX_PAGE_CHARS = 15000;
 
+// launchd/systemd 等服务环境的 PATH 很精简，主动补齐常见安装位置，
+// 保证 spawn("pi") 在服务模式下也能找到 pi。
+const EXTRA_PATHS = [
+  "/opt/homebrew/bin",   // Homebrew (Apple Silicon)
+  "/usr/local/bin",      // Homebrew (Intel) / npm -g
+  `${process.env.HOME}/.local/bin`,
+  `${process.env.HOME}/.volta/bin`,
+  `${process.env.HOME}/.nvm/current/bin`,
+];
+process.env.PATH = [...EXTRA_PATHS, process.env.PATH || ""].join(path.delimiter);
+
 // ---------------------------------------------------------------------------
 // Pi RPC 子进程
 // ---------------------------------------------------------------------------
