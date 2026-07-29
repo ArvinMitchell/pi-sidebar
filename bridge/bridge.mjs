@@ -11,7 +11,7 @@
 
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import http from "node:http";
@@ -370,7 +370,9 @@ function buildSummarizePrompt(page) {
 // HTTP（供 pi 扩展调用浏览器工具）+ WebSocket（侧边栏/后台客户端）
 // ---------------------------------------------------------------------------
 
-let toolClient = null; // Chrome 后台 service worker（角色: tools）
+const toolClients = new Map(); // instanceId -> Chrome 后台 service worker WebSocket
+let activeInstanceId = null;
+let activeWindowId = null;
 let streamedText = ""; // 当前 assistant 消息已流式转发的文本（用于非流式 provider 补发）
 const pendingToolCalls = new Map();
 let toolSeq = 0;
@@ -392,30 +394,54 @@ const server = http.createServer(async (req, res) => {
   };
 
   if (req.method === "POST" && req.url === "/tool") {
-    if (!toolClient || toolClient.readyState !== toolClient.OPEN) {
+    let targetClient = activeInstanceId ? toolClients.get(activeInstanceId) : null;
+    if (!targetClient || targetClient.readyState !== targetClient.OPEN) {
+      for (const client of toolClients.values()) {
+        if (client.readyState === client.OPEN) {
+          targetClient = client;
+          break;
+        }
+      }
+    }
+
+    if (!targetClient || targetClient.readyState !== targetClient.OPEN) {
       return json(503, { ok: false, error: "Chrome 插件未连接。请打开 Chrome 并确认插件已启用" });
     }
+
     let payload;
     try {
       payload = JSON.parse(await readBody(req));
     } catch {
       return json(400, { ok: false, error: "invalid json" });
     }
+
+    const args = payload.args || {};
+    if (activeWindowId != null && args.windowId == null) {
+      args._targetWindowId = activeWindowId;
+    }
+
     const id = `tool-${++toolSeq}`;
-    console.log(`[bridge] /tool ${payload.name} -> 转发给 Chrome`);
+    console.log(`[bridge] /tool ${payload.name} -> 转发给 Chrome (instance: ${activeInstanceId}, window: ${activeWindowId})`);
     const result = await new Promise((resolve) => {
       const timer = setTimeout(() => {
         pendingToolCalls.delete(id);
         resolve({ ok: false, error: `工具执行超时 (${TOOL_TIMEOUT_MS / 1000}s)` });
       }, TOOL_TIMEOUT_MS);
       pendingToolCalls.set(id, (r) => { clearTimeout(timer); resolve(r); });
-      toolClient.send(JSON.stringify({ type: "tool_call", id, name: payload.name, args: payload.args || {} }));
+      targetClient.send(JSON.stringify({ type: "tool_call", id, name: payload.name, args }));
     });
     return json(result.ok ? 200 : 500, result);
   }
 
   if (req.url === "/status") {
-    return json(200, { ok: true, clients: clients.size, toolClient: !!toolClient, streaming: isStreaming });
+    let hasToolClient = false;
+    for (const client of toolClients.values()) {
+      if (client.readyState === client.OPEN) {
+        hasToolClient = true;
+        break;
+      }
+    }
+    return json(200, { ok: true, clients: clients.size, toolClient: hasToolClient, streaming: isStreaming });
   }
 
   json(404, { ok: false, error: "not found" });
@@ -447,9 +473,17 @@ wss.on("connection", (ws) => {
       case "hello":
         // Chrome 后台 service worker 注册为工具执行端
         if (msg.role === "tools") {
-          toolClient = ws;
-          console.log("[bridge] tool client registered (Chrome background)");
+          const instId = msg.instanceId || "default";
+          ws._instanceId = instId;
+          toolClients.set(instId, ws);
+          if (!activeInstanceId) activeInstanceId = instId;
+          console.log(`[bridge] tool client registered (instance: ${instId})`);
         }
+        return;
+
+      case "active_context":
+        if (msg.instanceId) activeInstanceId = msg.instanceId;
+        if (msg.windowId != null) activeWindowId = msg.windowId;
         return;
 
       case "tool_result": {
@@ -468,6 +502,8 @@ wss.on("connection", (ws) => {
 
     switch (msg.type) {
       case "prompt": {
+        if (msg.instanceId) activeInstanceId = msg.instanceId;
+        if (msg.windowId != null) activeWindowId = msg.windowId;
         const text = String(msg.text || "").trim();
         if (!text) return;
         if (isStreaming) {
@@ -479,6 +515,8 @@ wss.on("connection", (ws) => {
       }
 
       case "summarize": {
+        if (msg.instanceId) activeInstanceId = msg.instanceId;
+        if (msg.windowId != null) activeWindowId = msg.windowId;
         const prompt = buildSummarizePrompt(msg.page);
         if (isStreaming) {
           sendRpc({ type: "prompt", message: prompt, streamingBehavior: "followUp" });
@@ -499,6 +537,33 @@ wss.on("connection", (ws) => {
         break;
 
       case "list_sessions": {
+        const sessions = await listSessions();
+        ws.send(JSON.stringify({ type: "sessions", sessions }));
+        break;
+      }
+
+      case "delete_session": {
+        const target = String(msg.path || "");
+        const dir = await getSessionDir();
+        // 路径安全：必须是会话目录下的 .jsonl 文件
+        if (!dir || !target.startsWith(dir + path.sep) || !target.endsWith(".jsonl")) {
+          ws.send(JSON.stringify({ type: "error", message: "非法的会话路径" }));
+          break;
+        }
+        // 正在使用的会话不允许删除（pi 进程持有该文件）
+        const state = await rpcCall({ type: "get_state" });
+        if (state.success && state.data.sessionFile === target) {
+          ws.send(JSON.stringify({ type: "error", message: "当前会话正在使用中，请先新建会话再删除" }));
+          const sessions = await listSessions();
+          ws.send(JSON.stringify({ type: "sessions", sessions }));
+          break;
+        }
+        try {
+          unlinkSync(target);
+          console.log(`[bridge] 已删除会话: ${path.basename(target)}`);
+        } catch (err) {
+          ws.send(JSON.stringify({ type: "error", message: `删除失败: ${err.message}` }));
+        }
         const sessions = await listSessions();
         ws.send(JSON.stringify({ type: "sessions", sessions }));
         break;
@@ -549,9 +614,13 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     clients.delete(ws);
-    if (ws === toolClient) {
-      toolClient = null;
-      console.log("[bridge] tool client disconnected");
+    if (ws._instanceId && toolClients.get(ws._instanceId) === ws) {
+      toolClients.delete(ws._instanceId);
+      if (activeInstanceId === ws._instanceId) {
+        const firstRemaining = toolClients.keys().next().value;
+        activeInstanceId = firstRemaining || null;
+      }
+      console.log(`[bridge] tool client disconnected (instance: ${ws._instanceId})`);
     }
     console.log(`[bridge] client disconnected (${clients.size} total)`);
   });

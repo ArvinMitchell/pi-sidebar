@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Pi Sidebar",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "在浏览器侧边栏与本地 Pi agent 对话，可一键总结当前页面。",
   "homepage_url": "https://github.com/ArvinMitchell/pi-sidebar",
   "permissions": [
     "scripting",
     "sidePanel",
     "tabs",
-    "alarms"
+    "alarms",
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"

@@ -67,11 +67,37 @@ body {
 
 .history-item {
   padding: 8px 12px;
+  padding-right: 34px;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 .history-item:last-child { border-bottom: none; }
 .history-item:hover { background: var(--bg-alt); }
+
+.history-delete {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 6px;
+  display: none;
+}
+.history-item:hover .history-delete { display: block; }
+.history-delete:hover { color: #d64545; border: none; }
+.history-delete.armed {
+  display: block;
+  font-size: 11px;
+  color: #d64545;
+  border: 1px solid #d64545;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
 .history-item .title {
   overflow: hidden;
   text-overflow: ellipsis;

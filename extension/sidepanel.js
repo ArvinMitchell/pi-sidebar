@@ -58,6 +58,39 @@ applyTheme();
 
 let ws = null;
 let currentAssistantEl = null; // 正在流式输出的气泡
+let currentInstanceId = null;
+let currentWindowId = null;
+
+async function initContext() {
+  try {
+    const data = await chrome.storage.local.get("pi_instance_id");
+    if (data.pi_instance_id) {
+      currentInstanceId = data.pi_instance_id;
+    } else {
+      currentInstanceId = "inst_" + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+      await chrome.storage.local.set({ pi_instance_id: currentInstanceId });
+    }
+  } catch {}
+
+  try {
+    const win = await chrome.windows.getCurrent();
+    currentWindowId = win.id;
+  } catch {}
+}
+
+initContext();
+
+function sendActiveContext() {
+  if (ws && ws.readyState === WebSocket.OPEN && currentInstanceId) {
+    ws.send(JSON.stringify({
+      type: "active_context",
+      instanceId: currentInstanceId,
+      windowId: currentWindowId,
+    }));
+  }
+}
+
+window.addEventListener("focus", sendActiveContext);
 
 // ---------------------------------------------------------------------------
 // WebSocket 连接（断线自动重连）
@@ -66,7 +99,10 @@ let currentAssistantEl = null; // 正在流式输出的气泡
 function connect() {
   ws = new WebSocket(WS_URL);
 
-  ws.onopen = () => setStatus(true);
+  ws.onopen = () => {
+    setStatus(true);
+    sendActiveContext();
+  };
 
   ws.onclose = () => {
     setStatus(false);
@@ -85,7 +121,11 @@ function connect() {
 
 function send(obj) {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(obj));
+    ws.send(JSON.stringify({
+      ...obj,
+      instanceId: currentInstanceId,
+      windowId: currentWindowId,
+    }));
     return true;
   }
   addMessage("error", "Bridge 未连接。请先在终端运行：cd ~/pi-sidebar/bridge && npm start");
@@ -189,7 +229,34 @@ function renderSessionList(sessions) {
     const date = document.createElement("div");
     date.className = "date";
     date.textContent = formatTime(s.mtime);
-    item.append(title, date);
+
+    // 删除按钮：第一次点击进入确认状态（3 秒超时恢复），再点一次才删除
+    const del = document.createElement("button");
+    del.className = "history-delete";
+    del.title = "删除会话";
+    del.textContent = "×";
+    let armed = false;
+    let armTimer = null;
+    const disarm = () => {
+      armed = false;
+      del.textContent = "×";
+      del.classList.remove("armed");
+    };
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        armed = true;
+        del.textContent = "确认删除?";
+        del.classList.add("armed");
+        armTimer = setTimeout(disarm, 3000);
+      } else {
+        clearTimeout(armTimer);
+        item.remove();
+        send({ type: "delete_session", path: s.path });
+      }
+    });
+
+    item.append(title, date, del);
     item.addEventListener("click", () => {
       closeHistoryPanel();
       send({ type: "switch_session", path: s.path });

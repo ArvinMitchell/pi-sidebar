@@ -8,8 +8,32 @@ const WS_URL = "ws://127.0.0.1:43118";
 const RECONNECT_MS = 3000;
 
 let ws = null;
+let lastFocusedWindowId = null;
 
-function connect() {
+async function getInstanceId() {
+  try {
+    const data = await chrome.storage.local.get("pi_instance_id");
+    if (data.pi_instance_id) return data.pi_instance_id;
+    const id = "inst_" + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+    await chrome.storage.local.set({ pi_instance_id: id });
+    return id;
+  } catch {
+    // storage 不可用时退化为随机 ID（本次会话内有效）
+    if (!getInstanceId._fallback) {
+      getInstanceId._fallback = "inst_" + Math.random().toString(36).slice(2, 11);
+    }
+    return getInstanceId._fallback;
+  }
+}
+
+chrome.windows.onFocusChanged.addListener((winId) => {
+  if (winId !== chrome.windows.WINDOW_ID_NONE) {
+    lastFocusedWindowId = winId;
+  }
+});
+
+async function connect() {
+  const instanceId = await getInstanceId();
   try {
     ws = new WebSocket(WS_URL);
   } catch {
@@ -18,7 +42,7 @@ function connect() {
   }
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ type: "hello", role: "tools" }));
+    ws.send(JSON.stringify({ type: "hello", role: "tools", instanceId }));
   };
 
   ws.onmessage = (event) => {
@@ -60,12 +84,19 @@ async function handleTool(msg) {
   }
 }
 
-async function getTargetTab(tabId) {
+async function getTargetTab(tabId, targetWindowId) {
   let tab;
   if (tabId != null) {
     tab = await chrome.tabs.get(tabId);
   } else {
-    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const winId = targetWindowId || lastFocusedWindowId;
+    if (winId != null) {
+      const tabs = await chrome.tabs.query({ active: true, windowId: winId });
+      tab = tabs[0];
+    }
+    if (!tab) {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    }
   }
   if (!tab?.id) throw new Error("找不到目标标签页");
   if (!/^https?:/.test(tab.url || "")) {
@@ -75,12 +106,15 @@ async function getTargetTab(tabId) {
 }
 
 async function executeTool(name, args) {
+  const targetWinId = args.windowId || args._targetWindowId || lastFocusedWindowId;
+
   switch (name) {
     case "browser_list_tabs": {
       const tabs = await chrome.tabs.query({});
       return tabs.map((t) => ({
         id: t.id, title: t.title, url: t.url,
         active: t.active, windowId: t.windowId,
+        isCurrentWindow: targetWinId != null ? t.windowId === targetWinId : undefined,
       }));
     }
 
@@ -89,14 +123,21 @@ async function executeTool(name, args) {
         const tab = await chrome.tabs.update(args.tabId, { url: args.url, active: true });
         return { tabId: tab.id, url: tab.url };
       }
-      const tab = await chrome.tabs.create({ url: args.url, active: true });
+      const createOpts = { url: args.url, active: true };
+      if (targetWinId != null) createOpts.windowId = targetWinId;
+      const tab = await chrome.tabs.create(createOpts);
       return { tabId: tab.id, url: tab.url || args.url };
     }
 
     case "browser_read_page": {
-      const tab = args.url
-        ? await chrome.tabs.create({ url: args.url, active: false })
-        : await getTargetTab(args.tabId);
+      let tab;
+      if (args.url) {
+        const createOpts = { url: args.url, active: false };
+        if (targetWinId != null) createOpts.windowId = targetWinId;
+        tab = await chrome.tabs.create(createOpts);
+      } else {
+        tab = await getTargetTab(args.tabId, targetWinId);
+      }
       if (args.url) await waitForLoad(tab.id);
       const [r] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -107,7 +148,7 @@ async function executeTool(name, args) {
     }
 
     case "browser_screenshot": {
-      const tab = await getTargetTab(args.tabId);
+      const tab = await getTargetTab(args.tabId, targetWinId);
       const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
         format: "jpeg", quality: 70,
       });
@@ -120,7 +161,7 @@ async function executeTool(name, args) {
     }
 
     case "browser_click": {
-      const tab = await getTargetTab(args.tabId);
+      const tab = await getTargetTab(args.tabId, targetWinId);
       const [r] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: clickInTab,
@@ -130,7 +171,7 @@ async function executeTool(name, args) {
     }
 
     case "browser_type": {
-      const tab = await getTargetTab(args.tabId);
+      const tab = await getTargetTab(args.tabId, targetWinId);
       const [r] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: typeInTab,
@@ -140,7 +181,7 @@ async function executeTool(name, args) {
     }
 
     case "browser_scroll": {
-      const tab = await getTargetTab(args.tabId);
+      const tab = await getTargetTab(args.tabId, targetWinId);
       const [r] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: scrollInTab,
@@ -150,7 +191,7 @@ async function executeTool(name, args) {
     }
 
     case "browser_evaluate": {
-      const tab = await getTargetTab(args.tabId);
+      const tab = await getTargetTab(args.tabId, targetWinId);
       const [r] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         world: "MAIN",
