@@ -73,9 +73,11 @@ PI_SKILL_DIR="$HOME/.pi/agent/skills/browser-control"
 
 mkdir -p "$PI_EXT_DIR" "$PI_SKILL_DIR"
 
-if [ -f "$INSTALL_DIR/bridge/pi-browser-tools.mjs" ]; then
-  ln -sf "$INSTALL_DIR/bridge/pi-browser-tools.mjs" "$PI_EXT_DIR/pi-browser-tools.mjs"
-  info "已注册 Pi 全局扩展: $PI_EXT_DIR/pi-browser-tools.mjs"
+# Pi 只自动发现 extensions/*.ts；旧版误装的 .mjs 链接不会被发现，先清理。
+rm -f "$PI_EXT_DIR/pi-browser-tools.mjs"
+if [ -f "$INSTALL_DIR/bridge/pi-browser-tools.ts" ]; then
+  ln -sf "$INSTALL_DIR/bridge/pi-browser-tools.ts" "$PI_EXT_DIR/pi-browser-tools.ts"
+  info "已注册 Pi 全局扩展: $PI_EXT_DIR/pi-browser-tools.ts"
 fi
 
 if [ -f "$INSTALL_DIR/bridge/SKILL.md" ]; then

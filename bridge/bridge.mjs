@@ -46,7 +46,7 @@ const BROWSER_TOOLS = [
 
 const PI_ARGS = [
   "--mode", "rpc",
-  "--extension", path.join(BRIDGE_DIR, "pi-browser-tools.mjs"),
+  "--extension", path.join(BRIDGE_DIR, "pi-browser-tools.ts"),
   "--tools", BROWSER_TOOLS.join(","),
   "--session-dir", SESSION_DIR,
   "--name", "browser-sidebar",

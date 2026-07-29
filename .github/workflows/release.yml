@@ -39,7 +39,7 @@ jobs:
       - name: Package bridge (with production deps)
         run: |
           mkdir -p dist/pi-sidebar-bridge
-          cp bridge/bridge.mjs bridge/pi-browser-tools.mjs bridge/SKILL.md bridge/package.json bridge/package-lock.json dist/pi-sidebar-bridge/
+          cp bridge/bridge.mjs bridge/pi-browser-tools.ts bridge/SKILL.md bridge/package.json bridge/package-lock.json dist/pi-sidebar-bridge/
           cd dist/pi-sidebar-bridge
           npm ci --omit=dev --no-fund --no-audit
           cd ..

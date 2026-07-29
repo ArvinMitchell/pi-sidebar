@@ -23,7 +23,7 @@ Chrome 侧边栏 + 后台 service worker (extension/)
 本地 bridge (bridge/bridge.mjs)   ← HTTP /tool ← pi 扩展注册的 browser_* 工具
         │  stdin/stdout JSONL (RPC 模式)
         ▼
-pi --mode rpc --extension pi-browser-tools.mjs --tools browser_*
+pi --mode rpc --extension pi-browser-tools.ts --tools browser_*
    （复用你现有的 pi 安装、登录凭证、模型配置，会话存在 pi 标准目录）
 ```
 
@@ -120,7 +120,7 @@ curl http://127.0.0.1:43118/status
 
 ```
 bridge/bridge.mjs            WebSocket/HTTP 桥 + pi RPC 进程管理
-bridge/pi-browser-tools.mjs  pi 扩展：注册 browser_* 工具
+bridge/pi-browser-tools.ts   pi 扩展：注册 browser_* 工具
 extension/                   Chrome MV3 插件（侧边栏 + 后台工具执行端）
 ~/Pi Sidebar/workspace/      可见工作目录（运行时生成）
 ~/Pi Sidebar/sessions/       可见历史目录（运行时生成）
