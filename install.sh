@@ -42,27 +42,6 @@ mv "$INSTALL_DIR/pi-sidebar-bridge" "$INSTALL_DIR/bridge"
 rm -f "$TMP_ZIP"
 mkdir -p "$DATA_DIR/workspace" "$DATA_DIR/sessions"
 
-# 从旧版 workspace 对应的标准 Pi 会话目录迁移历史。
-# 只复制不删除、同名不覆盖，因此重复运行安全。
-migrate_legacy_workspace() {
-  local old_workspace="$1"
-  local key old_sessions
-  key=$(node -e 'const path=require("node:path"); const p=process.argv[1]; console.log("--" + p.split(path.sep).filter(Boolean).join("-") + "--")' "$old_workspace")
-  old_sessions="$HOME/.pi/agent/sessions/$key"
-  if find "$old_sessions" -maxdepth 1 -name '*.jsonl' -print -quit 2>/dev/null | grep -q .; then
-    info "迁移旧历史: $old_workspace → $DATA_DIR/sessions（旧文件保留）…"
-    find "$old_sessions" -maxdepth 1 -name '*.jsonl' -exec cp -n {} "$DATA_DIR/sessions/" \;
-  fi
-}
-
-# 一键安装旧版的默认位置
-migrate_legacy_workspace "$INSTALL_DIR/workspace"
-# README 早期源码安装的常见位置
-migrate_legacy_workspace "$HOME/pi-sidebar/workspace"
-# 手动解压到其他位置时可显式指定
-if [ -n "${PI_SIDEBAR_LEGACY_WORKSPACE:-}" ]; then
-  migrate_legacy_workspace "$PI_SIDEBAR_LEGACY_WORKSPACE"
-fi
 
 # ---------------------------------------------------------------------------
 # 3. 注册到 Pi 全局扩展与技能
