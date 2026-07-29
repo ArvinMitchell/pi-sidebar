@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Pi Sidebar - 麦克风授权</title>
+  <style>
+    body {
+      font-family: -apple-system, "PingFang SC", sans-serif;
+      max-width: 420px;
+      margin: 80px auto;
+      padding: 0 20px;
+      color: #1f2328;
+      line-height: 1.7;
+    }
+    button {
+      background: #4a6fd6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #result { margin-top: 16px; font-weight: 600; }
+    .ok { color: #1a7f37; }
+    .fail { color: #d1242f; }
+  </style>
+</head>
+<body>
+  <h2>🎤 麦克风授权</h2>
+  <p>Pi Sidebar 的语音输入需要麦克风权限。浏览器侧边栏无法显示授权弹窗，所以需要在这个页面授权一次，之后永久有效。</p>
+  <button id="btn">请求麦克风权限</button>
+  <p id="result"></p>
+  <script src="mic-permission.js"></script>
+</body>
+</html>
