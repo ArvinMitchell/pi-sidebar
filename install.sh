@@ -65,7 +65,26 @@ if [ -n "${PI_SIDEBAR_LEGACY_WORKSPACE:-}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. 配置开机自启
+# 3. 注册到 Pi 全局扩展与技能
+# ---------------------------------------------------------------------------
+info "注册到 Pi 全局扩展与技能…"
+PI_EXT_DIR="$HOME/.pi/agent/extensions"
+PI_SKILL_DIR="$HOME/.pi/agent/skills/browser-control"
+
+mkdir -p "$PI_EXT_DIR" "$PI_SKILL_DIR"
+
+if [ -f "$INSTALL_DIR/bridge/pi-browser-tools.mjs" ]; then
+  ln -sf "$INSTALL_DIR/bridge/pi-browser-tools.mjs" "$PI_EXT_DIR/pi-browser-tools.mjs"
+  info "已注册 Pi 全局扩展: $PI_EXT_DIR/pi-browser-tools.mjs"
+fi
+
+if [ -f "$INSTALL_DIR/bridge/SKILL.md" ]; then
+  cp "$INSTALL_DIR/bridge/SKILL.md" "$PI_SKILL_DIR/SKILL.md"
+  info "已注册 Pi 技能: $PI_SKILL_DIR/SKILL.md"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. 配置开机自启
 # ---------------------------------------------------------------------------
 if [[ "$OSTYPE" == darwin* ]]; then
   info "配置开机自启 (launchd)…"
@@ -123,7 +142,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. 验证
+# 5. 验证
 # ---------------------------------------------------------------------------
 info "验证…"
 sleep 3
