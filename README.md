@@ -47,23 +47,27 @@ pi --mode rpc --extension pi-browser-tools.mjs --tools browser_*
 - Node.js 20+
 - Chrome 114+
 
-### 1. 启动 bridge
-
-**方式 A（推荐，无需 git）**：从 [Releases](https://github.com/ArvinMitchell/pi-sidebar/releases/latest) 下载 `pi-sidebar-bridge-x.y.z.zip`（已含依赖），解压后：
+### 1. 一键安装 bridge（推荐）
 
 ```bash
-cd pi-sidebar-bridge
-npm start
+curl -fsSL https://raw.githubusercontent.com/ArvinMitchell/pi-sidebar/main/install.sh | bash
 ```
 
-**方式 B（源码）**：
+自动完成：依赖检查 → 下载最新 bridge → 迁移旧历史 → **配置开机自启**（macOS launchd / Linux systemd）→ 启动并验证。重启电脑后也会自动运行。
+
+**旧用户升级**：重新执行同一条命令即可。脚本会自动迁移一键安装旧目录和常见源码目录，旧文件保留、不会覆盖。若旧 bridge 曾手动解压到其他位置：
 
 ```bash
-git clone https://github.com/ArvinMitchell/pi-sidebar.git
-cd pi-sidebar/bridge
-npm install
-npm start
+PI_SIDEBAR_LEGACY_WORKSPACE="/旧的/workspace/路径" \
+  curl -fsSL https://raw.githubusercontent.com/ArvinMitchell/pi-sidebar/main/install.sh | bash
 ```
+
+<details>
+<summary>手动安装（不配置自启）</summary>
+
+从 [Releases](https://github.com/ArvinMitchell/pi-sidebar/releases/latest) 下载 `pi-sidebar-bridge-x.y.z.zip`，解压后执行 `npm start`。
+
+</details>
 
 bridge 默认监听 `127.0.0.1:43118`（可用 `PI_SIDEBAR_PORT` 修改）。
 
