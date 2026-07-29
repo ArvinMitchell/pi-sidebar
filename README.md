@@ -100,6 +100,15 @@ extension/                   Chrome MV3 插件（侧边栏 + 后台工具执行�
 workspace/                   （运行时生成）pi 会话锚定目录
 ```
 
+## 支持这个项目
+
+如果 Pi Sidebar 对你有帮助，可以请作者喝杯咖啡 ☕
+
+- **GitHub Sponsors**：https://github.com/sponsors/ArvinMitchell
+- **爱发电**：https://afdian.com/a/REPLACE_WITH_YOUR_AFDIAN_ID
+
+也欢迎 Star、提 Issue 和 PR。
+
 ## 许可
 
 MIT。图标来自 [Lucide](https://lucide.dev)（ISC）。应用图标取自 pi.dev，本项目与 Pi 官方无隶属关系，详见 [NOTICE](NOTICE)。
