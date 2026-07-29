@@ -123,6 +123,19 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 #btn-summarize { color: var(--accent); }
 
+#repo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  background: var(--bg);
+}
+#repo-link:hover { border-color: var(--accent); }
+#repo-link svg { width: 14px; height: 14px; }
+
 #chat {
   flex: 1;
   overflow-y: auto;
