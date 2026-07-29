@@ -39,6 +39,15 @@ pi --mode rpc --extension pi-browser-tools.mjs --tools browser_*
 
 ### 1. 启动 bridge
 
+**方式 A（推荐，无需 git）**：从 [Releases](https://github.com/ArvinMitchell/pi-sidebar/releases/latest) 下载 `pi-sidebar-bridge-x.y.z.zip`（已含依赖），解压后：
+
+```bash
+cd pi-sidebar-bridge
+npm start
+```
+
+**方式 B（源码）**：
+
 ```bash
 git clone https://github.com/ArvinMitchell/pi-sidebar.git
 cd pi-sidebar/bridge
@@ -50,8 +59,10 @@ bridge 默认监听 `127.0.0.1:43118`（可用 `PI_SIDEBAR_PORT` 修改）。
 
 ### 2. 安装 Chrome 插件
 
+从 [Releases](https://github.com/ArvinMitchell/pi-sidebar/releases/latest) 下载 `pi-sidebar-extension-x.y.z.zip` 并**解压**，然后：
+
 1. 打开 `chrome://extensions/`，开启**开发者模式**
-2. **加载已解压的扩展程序** → 选择 `pi-sidebar/extension`
+2. **加载已解压的扩展程序** → 选择解压出的目录
 3. 点工具栏图标打开侧边栏，显示**已连接**即成功
 
 ### 3. 验证浏览器工具（可选）
