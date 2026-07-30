@@ -11,13 +11,29 @@
 
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import http from "node:http";
 import { WebSocketServer } from "ws";
 
 const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+// /tool 与 WebSocket 鉴权 token：防止恶意网页通过 localhost 请求驱动浏览器工具。
+// token 仅本机用户可读；bridge 启动的 pi 进程经环境变量获取，独立运行的 pi
+// 会话由 pi-browser-tools 读取同目录 token 文件。
+const TOKEN = randomBytes(24).toString("hex");
+try {
+  writeFileSync(path.join(BRIDGE_DIR, "token"), TOKEN, { mode: 0o600 });
+} catch (err) {
+  console.error("[bridge] 无法写入 token 文件:", err.message);
+}
+
+// 浏览器发出的跨域请求（HTTP 与 WebSocket）必带 http(s) Origin，本地 pi/扩展则不会
+function isWebPageOrigin(origin) {
+  return !!origin && /^https?:/i.test(origin);
+}
 
 const PORT = Number(process.env.PI_SIDEBAR_PORT || 43118);
 const HOST = "127.0.0.1";
@@ -75,7 +91,10 @@ const clients = new Set();
 
 function startPi() {
   console.log(`[bridge] starting pi: pi ${PI_ARGS.join(" ")} (cwd=${WORKSPACE})`);
-  pi = spawn("pi", PI_ARGS, { cwd: WORKSPACE, env: process.env });
+  pi = spawn("pi", PI_ARGS, {
+    cwd: WORKSPACE,
+    env: { ...process.env, PI_SIDEBAR_TOKEN: TOKEN },
+  });
 
   pi.stderr.on("data", (chunk) => {
     process.stderr.write(`[pi stderr] ${chunk}`);
@@ -394,6 +413,14 @@ const server = http.createServer(async (req, res) => {
   };
 
   if (req.method === "POST" && req.url === "/tool") {
+    // 安全：拒绝网页来源的请求；要求本地调用方携带 token
+    if (isWebPageOrigin(req.headers.origin)) {
+      return json(403, { ok: false, error: "forbidden" });
+    }
+    if (req.headers["x-pi-sidebar-token"] !== TOKEN) {
+      return json(401, { ok: false, error: "unauthorized" });
+    }
+
     let targetClient = activeInstanceId ? toolClients.get(activeInstanceId) : null;
     if (!targetClient || targetClient.readyState !== targetClient.OPEN) {
       for (const client of toolClients.values()) {
@@ -453,7 +480,12 @@ server.listen(PORT, HOST, () => {
   console.log(`[bridge] HTTP+WebSocket listening on ${HOST}:${PORT}`);
 });
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
+  // 拒绝网页来源的 WebSocket（扩展是 chrome-extension://，本地客户端无 Origin）
+  if (isWebPageOrigin(req?.headers?.origin)) {
+    ws.close();
+    return;
+  }
   clients.add(ws);
   console.log(`[bridge] client connected (${clients.size} total)`);
   ws.send(JSON.stringify({ type: "status", streaming: isStreaming, connected: true }));

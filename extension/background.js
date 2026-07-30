@@ -105,6 +105,20 @@ async function getTargetTab(tabId, targetWindowId) {
   return tab;
 }
 
+async function createTab(opts) {
+  try {
+    return await chrome.tabs.create(opts);
+  } catch (err) {
+    // windowId 可能已失效（侧边栏所在窗口被关闭），降级为默认行为重试
+    if (opts.windowId != null) {
+      const rest = { ...opts };
+      delete rest.windowId;
+      return await chrome.tabs.create(rest);
+    }
+    throw err;
+  }
+}
+
 async function executeTool(name, args) {
   const targetWinId = args.windowId || args._targetWindowId || lastFocusedWindowId;
 
@@ -125,16 +139,18 @@ async function executeTool(name, args) {
       }
       const createOpts = { url: args.url, active: true };
       if (targetWinId != null) createOpts.windowId = targetWinId;
-      const tab = await chrome.tabs.create(createOpts);
+      const tab = await createTab(createOpts);
       return { tabId: tab.id, url: tab.url || args.url };
     }
 
     case "browser_read_page": {
       let tab;
+      let created = false;
       if (args.url) {
         const createOpts = { url: args.url, active: false };
         if (targetWinId != null) createOpts.windowId = targetWinId;
-        tab = await chrome.tabs.create(createOpts);
+        tab = await createTab(createOpts);
+        created = true;
       } else {
         tab = await getTargetTab(args.tabId, targetWinId);
       }
@@ -144,11 +160,20 @@ async function executeTool(name, args) {
         func: readPageInTab,
         args: [args.format || "text", args.selector || null, args.maxChars || 20000],
       });
-      return { tabId: tab.id, title: tab.title, url: tab.url, content: r?.result ?? "" };
+      const result = { tabId: tab.id, title: tab.title, url: tab.url, content: r?.result ?? "" };
+      if (created && args.autoClose) {
+        try { await chrome.tabs.remove(tab.id); } catch {}
+        result.closed = true;
+      }
+      return result;
     }
 
     case "browser_screenshot": {
       const tab = await getTargetTab(args.tabId, targetWinId);
+      // captureVisibleTab 只能截窗口内当前活跃标签页，先激活目标标签
+      if (!tab.active) {
+        await chrome.tabs.update(tab.id, { active: true });
+      }
       const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
         format: "jpeg", quality: 70,
       });

@@ -8,15 +8,39 @@
  */
 
 import { Type } from "typebox";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const BRIDGE_URL = process.env.PI_SIDEBAR_BRIDGE || "http://127.0.0.1:43118";
+
+// bridge 生成的鉴权 token（防恶意网页经 localhost 驱动浏览器工具）。
+// 优先环境变量（bridge 启动的 pi 进程），否则读 bridge 安装目录下的 token 文件
+//（独立运行的 pi 会话，经全局扩展加载本文件的场景）。
+function loadToken() {
+  if (process.env.PI_SIDEBAR_TOKEN) return process.env.PI_SIDEBAR_TOKEN;
+  const candidates = [
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "token"),
+    path.join(process.env.HOME || "", ".pi-sidebar", "bridge", "token"),
+  ];
+  for (const p of candidates) {
+    try {
+      return readFileSync(p, "utf8").trim();
+    } catch {}
+  }
+  return "";
+}
+const TOKEN = loadToken();
 
 async function callBrowser(name, args) {
   let resp;
   try {
     resp = await fetch(`${BRIDGE_URL}/tool`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-pi-sidebar-token": TOKEN,
+      },
       body: JSON.stringify({ name, args }),
     });
   } catch (err) {
@@ -60,6 +84,7 @@ export default function (pi) {
     parameters: Type.Object({
       tabId: TabIdParam,
       url: Type.Optional(Type.String({ description: "若给出，则新建标签页打开该 URL 后读取" })),
+      autoClose: Type.Optional(Type.Boolean({ description: "读取完成后关闭新建的标签页（仅 url 模式，默认 false）。只读内容不后续操作时建议 true" })),
       format: Type.Optional(Type.String({ description: '"text"（默认）或 "html"' })),
       selector: Type.Optional(Type.String({ description: "只提取匹配 CSS 选择器的元素" })),
       maxChars: Type.Optional(Type.Number({ description: "最多返回字符数，默认 20000" })),
